@@ -1,0 +1,161 @@
+https://github.com/24eme/formationmongodb
+file:///home/nta/Documents/Formations/FormationMongoDB/formationmongodb/slides/1-formation-mongodb-theorie.html#/
+
+MongoDB vs CouchDB: MongoDB mise tout sur la RAM
+Les bases NoSQL sont schema less.
+
+Attention, l'utilisation des techno NoSQL ajuote du travail côté Dev là où les pb étaient gérés côté DBA
+
+Client MongoDB full javascript avec stockage au format JSON.
+MongoDB utilise le format BSON pour etendre JSON et fournir des types de données supplémentaires.
+MongoDB represents JSON documents in binary-encoded format called BSON behind the scenes. BSON extends the JSON model to provide additional data types, ordered fields, and to be efficient for encoding and decoding within different languages.
+
+Fonctionnalités majeures:
+
+Map/Reduce optimisée via le framework d'agrégation
+Replication et failover
+Sharding
+
+Moteurs de stockage disque bas niveau:
+	- MMAPv1
+	- WiredTiger (par defaut depuis la version 3.2)
+
+Un doc JSON ne peut pas exceder 16 Mo (utilitaire "mongofiles" pour palier à cette limite)
+MongoDB utilise la notion de workingSet qui represente l'ensemble des données mongo en RAM.
+
+
+
+server:
+	sudo service mongod stop
+	mongod stop/waiting
+	sudo mongod --dbpath=/var/lib/mongodb
+
+client:
+	mongo
+	show dbs
+	db
+	use bobafet
+	db
+
+CRUD:
+	db.collection.insert(document, options)
+	db.collection.find(query, projection)
+	db.collection.update(query, update, options)
+		query permet de récupérer les documents d'une collection sur lesquels on souhaite travailler.
+		options :
+		    upsert : (true / false) si doc. non trouvé, création
+		    multi : (true / false)
+		    writeConcern : (doc)
+	db.collection.remove(query, options)
+		options:
+		    justOne : (true / false)
+		    writeConcern : (doc)
+
+
+tests:
+	> show dbs
+	local          0.078GB
+	tyk_analytics  0.078GB
+	> 
+	> use bobafet
+	switched to db bobafet
+	> db.fixtures.insert({libelle: "Test Insert", value:"blob"})
+	WriteResult({ "nInserted" : 1 })
+	> show dbs
+	bobafet        0.078GB
+	local          0.078GB
+	tyk_analytics  0.078GB
+	> show collections
+	fixtures
+	system.indexes
+	> db.fixtures.find()
+	{ "_id" : ObjectId("5afc23724c051a700b988411"), "libelle" : "Test Insert", "value" : "blob" }
+
+	>load('/home/nta/Documents/Formations/FormationMongoDB/formationmongodb/assets/base-movies/vertigo.js')
+	>db.movies.find().pretty()
+	>db.movies.update({}, {&set: {"director.nationality" : "USA"}})
+
+
+mongorestore -d cinema -c movies ~/Documents/Formations/FormationMongoDB/formationmongodb/assets/base-movies/movies.bson
+--> restorsdb
+ le contenu de movies.bson dans la base de donnée "cinema" et la collection "movies"
+
+> show dbs
+bobafet        0.078GB
+cinema         0.078GB
+local          0.078GB
+movies         0.078GB
+tyk_analytics  0.078GB
+> use cinema
+switched to db cinema
+> use cinema
+switched to db cinema
+> db
+cinema
+> db.movies.count()
+65
+> db.movies.find({year: {$gte: 1997, $lte: 2000} } )
+> db.movies.find({year: {$gte: 1997, $lte: 2000} } ).pretty()
+> db.movies.find({year: {$gte: 1997, $lte: 2000} }, {title: 1} ).pretty()
+> db.movies.find({year: {$gte: 1997, $lte: 2000} }, {title: 1, _id: 0} ).pretty()
+> db.movies.find({year: {$gte: 1997, $lte: 2000} }, {title: 1, _id: 0}).sort( {title: 1})
+> db.movies.find({title: {$regex: /matri/i}}, {title: 1}).pretty()
+{ "_id" : 23, "title" : "Matrix" }
+{ "_id" : 49, "title" : "The Matrix reloaded" }
+{ "_id" : 50, "title" : "The Matrix Revolutions" }
+> db.movies.find({title: {$regex: /^matri/i}}, {title: 1}).pretty()
+{ "_id" : 23, "title" : "Matrix" }
+
+------ Map / Reduce ---------------------------------------------------------
+https://docs.mongodb.com/manual/reference/command/mapReduce/#requirements-for-the-map-function
+
+> var map= function() { emit(this.genre, 1); }
+> var reduce = function (key, values) { return Array.sum(values); }
+> db.movies.mapReduce(map, reduce, {out: "movies_by_genre"})
+{
+	"result" : "movies_by_genre",
+	"timeMillis" : 32,
+	"counts" : {
+		"input" : 65,
+		"emit" : 65,
+		"reduce" : 11,
+		"output" : 12
+	},
+	"ok" : 1
+}
+> db.movies_by_genre.find()
+{ "_id" : "Action", "value" : 11 }
+{ "_id" : "Comédie", "value" : 4 }
+{ "_id" : "Fantastique", "value" : 2 }
+{ "_id" : "Guerre", "value" : 2 }
+{ "_id" : "Horreur", "value" : 4 }
+{ "_id" : "Science-fiction", "value" : 8 }
+{ "_id" : "Suspense", "value" : 2 }
+{ "_id" : "Thriller", "value" : 5 }
+{ "_id" : "Western", "value" : 3 }
+{ "_id" : "crime", "value" : 6 }
+{ "_id" : "drama", "value" : 17 }
+{ "_id" : "romance", "value" : 1 }
+
+> db.movies.aggregate([ {$group: {_id: "$genre", nb_movies: {$sum: 1} }}])
+{ "_id" : "Thriller", "nb_movies" : 5 }
+{ "_id" : "Fantastique", "nb_movies" : 2 }
+{ "_id" : "Guerre", "nb_movies" : 2 }
+{ "_id" : "Science-fiction", "nb_movies" : 8 }
+{ "_id" : "Suspense", "nb_movies" : 2 }
+{ "_id" : "Western", "nb_movies" : 3 }
+{ "_id" : "Horreur", "nb_movies" : 4 }
+{ "_id" : "romance", "nb_movies" : 1 }
+{ "_id" : "Action", "nb_movies" : 11 }
+{ "_id" : "crime", "nb_movies" : 6 }
+{ "_id" : "drama", "nb_movies" : 17 }
+{ "_id" : "Comédie", "nb_movies" : 4 }
+
+aggregate est plus performant que MR et de plus il supporte le sharding
+
+
+
+mongofiles permet de stocker des données > 16 Mo
+mais préferer les solutions de type object file storage
+
+

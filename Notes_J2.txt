@@ -1,0 +1,118 @@
+Indexation
+
+certains opérateurs ne passent pas par les index
+une requête n'utilise qu'un seul index, il faut dans ce cas forcer la selection d'un index
+Seul l'opérateur "$or" utilise plusieurs index, mais cela est long
+
+
+tips:
+db.sirets.find().explain("executionStats")
+
+on peut faire de la recherche fulltext en créant un index "text"
+Mais il ne peut y avoir qu'un seul index text par collection.
+ex:
+db.sirets.find({$text: {$search: "24eme"}}, {"entreprise.nomen_long":1})
+
+
+indexation geographique:
+
+ex: creation d'un index compsé
+db.sirets.createIndex({localisation: "2dsphere", "caracteristiques_economiques.apet700": 1}, {sparse: true})
+
+ex: recherche des restos dans les 100 metres autour des coordonnées [2.3478, 48.871762]
+db.sirets.find( {$and: [{localisation: {$near: {$geometry: {type: "Point", coordinates: [2.3478, 48.871762]}, $maxDistance: 100}}}, {"caracteristiques_economiques.apet700": {$in: ['5610A', '5610B', '5610C']}}]})
+
+
+> show dbs
+bobafet        0.078GB
+cinema         0.078GB
+local          0.078GB
+movies         0.078GB
+tyk_analytics  0.078GB
+> use admin
+switched to db admin
+> db.createUser({user: "admin", pwd: "admin", roles: [{role: "userAdminAnyDatabase", db: "admin"}]})
+Successfully added user: {
+	"user" : "admin",
+	"roles" : [
+		{
+			"role" : "userAdminAnyDatabase",
+			"db" : "admin"
+		}
+	]
+}
+> show dbs
+admin          0.078GB
+bobafet        0.078GB
+cinema         0.078GB
+local          0.078GB
+movies         0.078GB
+tyk_analytics  0.078GB
+> db.system.users.find().pretty()
+{
+	"_id" : "admin.admin",
+	"user" : "admin",
+	"db" : "admin",
+	"credentials" : {
+		"SCRAM-SHA-1" : {
+			"iterationCount" : 10000,
+			"salt" : "pft1XDsQ7BbEw6XLxrN06A==",
+			"storedKey" : "OpWVKURKoY8s9jmI1iVqQ9qRBVk=",
+			"serverKey" : "GEatAdRShzvoBRLCzLsu17MeCnA="
+		}
+	},
+	"roles" : [
+		{
+			"role" : "userAdminAnyDatabase",
+			"db" : "admin"
+		}
+	]
+}
+
+
+> use cinema
+switched to db cinema
+> db.createUser({user: "dev", pwd: "dev", roles: ["readWrite"]})
+> eq.
+> db.createUser({user: "dev", pwd: "dev", roles: [{role: "readWrite", db: "cinema"}]})
+Successfully added user: { "user" : "dev", "roles" : [ "readWrite" ] }
+> show users
+{
+	"_id" : "cinema.dev",
+	"user" : "dev",
+	"db" : "cinema",
+	"roles" : [
+		{
+			"role" : "readWrite",
+			"db" : "cinema"
+		}
+	]
+}
+
+Activer l'authentification au niv du serveur:
+sudo mongod --dbpath=/var/lib/mongodb --auth
+
+coté client:
+> db.system.users.find().pretty()
+2018-05-17T12:25:26.341+0200 I NETWORK  DBClientCursor::init call() failed
+Error: error doing query: failed
+2018-05-17T12:25:26.343+0200 I NETWORK  trying reconnect to 127.0.0.1:27017 (127.0.0.1) failed
+2018-05-17T12:25:26.343+0200 I NETWORK  reconnect 127.0.0.1:27017 (127.0.0.1) ok
+
+
+>use cinema
+> db.auth('dev', 'dev')
+1
+
+
+
+OU alors on lance le client de facon authentifié:
+nta@linmb041450s:~$ mongo -u dev -p dev  --authenticationDatabase cinema
+MongoDB shell version: 3.0.15
+connecting to: test
+> use cinema
+switched to db cinema
+> 
+
+
+
