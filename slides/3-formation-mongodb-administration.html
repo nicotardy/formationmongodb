@@ -2,7 +2,11 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
 
 		<title>Formation MongoDB - Administration</title>
 
@@ -155,19 +159,48 @@ net:
 					</p>
 				</section>
 				<section>
-					<h1 style="text-transform: none;">Réplication</h1>
-					<h3 style="text-transform: none;">WriteConcern</h3>
-					<p>
-						Manière dont Mongo va écrire sur les noeuds du Replica Set.
-					</p>
-					<ul>
-						<li>w: 0, aucun controle</li>
-						<li>w: 1, (défaut) noeud primaire et replication async.</li>
-						<li>w: 2 -> w: 50, termine à l'écriture sur n noeuds</li>
-						<li>w: all, termine à l'écriture sur l'ensemble des noeuds</li>
-						<li>w: majority, termine à l'écriture sur la majorité des noeuds</li>
-						<li>wtimeout, (millisec.) time limit de l'écriture</li>
-					</ul>
+					<section>
+						<h1 style="text-transform: none;">Réplication</h1>
+						<h3 style="text-transform: none;">WriteConcern</h3>
+						<p>
+							Manière dont Mongo va écrire sur les noeuds du Replica Set.
+						</p>
+						<ul>
+							<li>w: 0, aucun controle, dans ce cas le client récupère tt de suite la main sans attendre la fin de l'insert sur le master</li>
+							<li>w: 1, (défaut) noeud primaire et replication async. Ici on attend que l'insert soit effectué sur le master</li>
+							<li>w: 2 -> w: 50, termine à l'écriture sur n noeuds. Il faut que n-1 slaves soit mis à jour avant de réucpérer la main</li>
+							<li>w: all, termine à l'écriture sur l'ensemble des noeuds</li>
+							<li>w: majority, termine à l'écriture sur la majorité des noeuds</li>
+							<li>wtimeout, (millisec.) time limit de l'écriture</li>
+						</ul>
+					</section>
+					<section>
+						<h1>Ex:</h1>
+						<h3>cluster avec 1 master et 2 slaves.</h3>
+						<ul>
+							<li>sudo mongod --port 27017 --replSet formationmongodb --dbpath /var/lib/n1</li>
+							<li>sudo mongod --port 27018 --replSet formationmongodb --dbpath /var/lib/n2</li>
+							<li>sudo mongod --port 27019 --replSet formationmongodb --dbpath /var/lib/n3</li>
+							<li>sudo mongod --port 27020 --replSet formationmongodb --dbpath /var/lib/n4</li>
+						</ul>
+						<br>Le master est defini automatiquement lors de la première connexion d'un client.
+		<pre><code>
+		$mongo --port:27017
+		>rs.initiate()
+		>rs.status()
+		>rs.add('localhost:27018')
+		>rs.slaveOk()
+		>rs.add('localhost:27019')
+		>rs.slaveOk()
+		</code></pre>
+					</section>
+					<section>
+						configuration de l'arbitre: 
+		<pre><code>
+		>rs.add('localhost:27020', true)
+		>rs.addAbr('localhost:27020')
+		</code></pre>
+					</section>
 				</section>
 				<section>
 					<h1 style="text-transform: none;">Réplication</h1>
@@ -259,9 +292,109 @@ sh.setBalancerState(true)
 					</code></pre>
 				</section>
 				<section>
-					<h1 style="text-transform: none;">Sharding</h1>
-					<h3 style="text-transform: none;">Exemple</h3>
-					<img style="height:221px; border:none;" alt="Replica Set" src="img/sh.png" />
+					<section>
+						<h1 style="text-transform: none;">Sharding</h1>
+						<h3 style="text-transform: none;">Exemple</h3>
+						<img style="height:221px; border:none;" alt="Replica Set" src="img/sh.png" />
+					</section>
+					
+					<section>
+					TP Sharding<br>
+					Creation du config Server
+						<pre><code>
+	sudo mongod --port 27001 --dbpath /var/lib/cs1 --replSet configuration --configsvr
+	sudo mongod --port 27002 --dbpath /var/lib/cs2 --replSet configuration --configsvr
+	sudo mongod --port 27003 --dbpath /var/lib/cs3 --replSet configuration --configsvr
+						</code></pre>
+					</section>
+					<section>
+					TP Sharding<br>
+					Lancement des Replica Set du config server
+						<pre><code>
+		$mongo --port:27001
+		>rs.initiate()
+		>rs.status()
+		>rs.add('localhost:27002')
+		>rs.add('localhost:27003')
+						</code></pre>
+					</section>
+					<section>
+					TP Sharding<br>
+					Lancement des 3 Shards (une seule instantce de mongod sur cet ex.)
+						<pre><code>
+		$sudo mongod --port 27018 --dbpath /var/lib/sh1 --shardsvr
+		$sudo mongod --port 27019 --dbpath /var/lib/sh2 --shardsvr
+		$sudo mongod --port 27020 --dbpath /var/lib/sh3 --shardsvr
+						</code></pre>
+					</section>
+					<section>
+					TP Sharding<br>
+					Lancement du "mongos"
+						<pre><code>
+$mongos --port 27017 --configdb configuration/localhost:27001,localhost:27002,localhost:27003
+						</code></pre>
+					le port par defaut est le 27017
+					</section>
+					<section>
+					TP Sharding<br>
+					Lancement du client mongo
+						<pre><code>
+$mongo --port 27017
+						</code></pre>
+					le port par defaut est le 27017
+					</section>
+					<section>
+					TP Sharding<br>
+					Ajout de Shards
+						<pre><code>
+mongos> use config
+mongos> db.settings.insert({_id:"chunksize", value: 1})
+mongos> sh.addShard('localhost:27018')
+mongos> sh.addShard('localhost:27019')
+mongos> sh.addShard('localhost:27020')
+mongos> use sharding
+mongos> for (var i=0; i<50000; i++) { db.users.insert({"numero": i, "nom": "Utilisateur"+i, "createdAt": new Date()}) }
+mongos> db.users.count()
+mongos> sh.status()
+						</code></pre>
+						"partitioned = false" + un seul chunk:
+on constate que les données ne sont pas réparties
+					</section>
+					<section>
+					TP Sharding<br>
+					Activation du sharding sur la base "sharding"
+						<pre><code>
+mongos> sh.enableSharding("sharding")
+						</code></pre>
+						A présent "partitioned = true"
+					</section>
+					<section>
+					TP Sharding<br>
+					On a des shards, on a des données, on a autorisé la base à être shardée, on va créer un index de type "hashed" pour créer la clef de sharding
+						<pre><code>
+mongos> show collections
+users
+mongos> db.users.createIndex({ nom: "hashed" })
+						</code></pre>
+					</section>
+					<section>
+					TP Sharding<br>
+					on lance le sharding
+						<pre><code>
+mongos> sh.shardCollection("sharding.users", { nom: "hashed" } );
+mongos> sh.status()
+						</code></pre>
+						'shardCollection()' lance la répartition des données sur les shards.
+					</section>
+					<section>
+					TP Sharding<br>
+					Test:
+						<pre><code>
+mongos> show collections
+users
+mongos> db.users.find({nom: "Utilisateur22368"}).explain()
+						</code></pre>
+					</section>
 				</section>
 				<section>
 					<h1 style="text-transform: none;">Journalisation</h1>
@@ -274,7 +407,7 @@ sh.setBalancerState(true)
 					<pre><code>mongod --repair</code></pre>
 				</section>
 				<section>
-					<h1 style="text-transform: none;">Preheating</h1>
+					<h1 style="text-transform: none;">Preheating</h1> pour pré-charger les données en RAM
 					<p>UNIX :</p>
 					<pre><code>
 for file in /var/lib/dbs/mydb/*
