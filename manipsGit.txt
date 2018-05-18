@@ -1,0 +1,10 @@
+git clone https://github.com/nicotardy/formationmongodb.git
+git remote add 24eme https://github.com/24eme/formationmongodb.git
+git remote -v
+git status 
+git commit -a -m "commentaires formation NTA"
+git push origin master 
+git fetch 24eme
+git branch -a
+git difftool master 24eme/master
+
